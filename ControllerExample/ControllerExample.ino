@@ -19,7 +19,8 @@
 #define LED_PIN     7
 
 // How many NeoPixels are attached to the Arduino?
-#define LED_COUNT  12
+#define LED_COUNT 12
+
 
 // NeoPixel brightness, 0 (min) to 255 (max)
 #define BRIGHTNESS 64 // About 1/4 brightness
@@ -42,9 +43,11 @@ void    printHex   (const uint8_t * data, const uint32_t numBytes);
 extern uint8_t packetbuffer[];
 
 // Pixel colors
-uint8_t red;
-uint8_t green;
-uint8_t blue;
+uint8_t red, currentRed;
+uint8_t green, currentGreen;
+uint8_t blue, currentBlue;
+uint8_t pattern;
+uint8_t lights[] = {0,1,2,3,4};
 
 void setup(void)
 {
@@ -56,7 +59,7 @@ void setup(void)
 
   Bluefruit.begin();
   Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
-  Bluefruit.setName("Dan's Bluefruit52");
+  Bluefruit.setName("Dan's '52");
 
   // To be consistent OTA DFU should be added first if it exists
   bledfu.begin();
@@ -78,6 +81,7 @@ void setup(void)
   red = 0;
   green = 0;
   blue = 0;
+  pattern = 0;
 }
 
 void startAdv(void)
@@ -115,8 +119,14 @@ void startAdv(void)
 /**************************************************************************/
 void loop(void)
 {
+  HandleInput();
+  UpdateLights();
+}
+
+void HandleInput()
+{
   // Wait for new data to arrive
-  uint8_t len = readPacket(&bleuart, 500);
+  uint8_t len = readPacket(&bleuart, 100);
   if (len == 0) return;
 
   // Got a packet!
@@ -134,10 +144,7 @@ void loop(void)
     //Serial.print(green, HEX);
     //if (blue < 0x10) Serial.print("0");
     //Serial.println(blue, HEX);
-    for(int i=0; i<strip.numPixels(); i++) { // For each pixel in strip...
-      strip.setPixelColor(i, strip.Color(red, green, blue));         //  Set pixel's color (in RAM)
-    }
-    strip.show();                          //  Update strip to match
+    
   }
 
   // Buttons
@@ -145,9 +152,21 @@ void loop(void)
     uint8_t buttnum = packetbuffer[2] - '0';
     boolean pressed = packetbuffer[3] - '0';
     Serial.print ("Button "); Serial.print(buttnum);
-    if (pressed) {
+    if (pressed) 
+    {
+      switch (buttnum)
+      { 
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+          pattern = buttnum - 1;
+          break;
+      }
       Serial.println(" pressed");
-    } else {
+    }
+    else 
+    {
       Serial.println(" released");
     }
   }
@@ -214,5 +233,54 @@ void loop(void)
     Serial.print(y); Serial.print('\t');
     Serial.print(z); Serial.print('\t');
     Serial.print(w); Serial.println();
+  }
+}
+
+void UpdateLights()
+{
+  int den;
+  switch (pattern)
+  {
+    case 0:
+      for(int i=0; i<strip.numPixels(); i++) 
+      { // For each pixel in strip...
+        strip.setPixelColor(i, strip.Color(red, green, blue));         //  Set pixel's color (in RAM)
+      }
+      
+      strip.show();                          //  Update strip to match
+      break;
+    case 1:
+      strip.clear();
+      den = 16;
+      for(int i = 4; i > 0; i--)
+      {
+        lights[i] = lights[i-1];
+        strip.setPixelColor(lights[i], strip.Color(red/den, green/den, blue/den));
+        den /= 2;  
+      }
+      
+      lights[0] = (lights[0] + 1) % LED_COUNT;
+      strip.setPixelColor(lights[0], strip.Color(red, green, blue));
+      strip.show();                          //  Update strip to match
+      break;
+    case 2:
+      strip.clear();
+      den = 16;
+      int j = 0;
+      for(int i = 4; i > 0; i--)
+      {
+        lights[i] = lights[i-1];
+        strip.setPixelColor(lights[i], strip.Color(red/den, green/den, blue/den));
+        j = (lights[i] + LED_COUNT / 2)%LED_COUNT;
+        strip.setPixelColor(j, strip.Color(red/den, green/den, blue/den));
+        den /= 2;  
+      }
+      
+      lights[0] = (lights[0] + 1) % LED_COUNT;
+      strip.setPixelColor(lights[0], strip.Color(red, green, blue));
+      j = (lights[0] + LED_COUNT / 2)%LED_COUNT;
+      strip.setPixelColor(j, strip.Color(red, green, blue));
+      strip.show();                          //  Update strip to match
+      break;
   }
 }
